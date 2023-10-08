@@ -23,17 +23,15 @@ const (
 	FieldDueDate = "due_date"
 	// FieldUserID holds the string denoting the user_id field in the database.
 	FieldUserID = "user_id"
-	// EdgeUser holds the string denoting the user edge name in mutations.
-	EdgeUser = "user"
+	// EdgeOwner holds the string denoting the owner edge name in mutations.
+	EdgeOwner = "owner"
 	// Table holds the table name of the todo in the database.
 	Table = "todos"
-	// UserTable is the table that holds the user relation/edge.
-	UserTable = "todos"
-	// UserInverseTable is the table name for the User entity.
+	// OwnerTable is the table that holds the owner relation/edge. The primary key declared below.
+	OwnerTable = "user_todos"
+	// OwnerInverseTable is the table name for the User entity.
 	// It exists in this package in order to avoid circular dependency with the "user" package.
-	UserInverseTable = "users"
-	// UserColumn is the table column denoting the user relation/edge.
-	UserColumn = "user_todos"
+	OwnerInverseTable = "users"
 )
 
 // Columns holds all SQL columns for todo fields.
@@ -46,21 +44,16 @@ var Columns = []string{
 	FieldUserID,
 }
 
-// ForeignKeys holds the SQL foreign-keys that are owned by the "todos"
-// table and are not defined as standalone fields in the schema.
-var ForeignKeys = []string{
-	"user_todos",
-}
+var (
+	// OwnerPrimaryKey and OwnerColumn2 are the table columns denoting the
+	// primary key for the owner relation (M2M).
+	OwnerPrimaryKey = []string{"user_id", "todo_id"}
+)
 
 // ValidColumn reports if the column name is valid (part of the table columns).
 func ValidColumn(column string) bool {
 	for i := range Columns {
 		if column == Columns[i] {
-			return true
-		}
-	}
-	for i := range ForeignKeys {
-		if column == ForeignKeys[i] {
 			return true
 		}
 	}
@@ -111,16 +104,23 @@ func ByUserID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUserID, opts...).ToFunc()
 }
 
-// ByUserField orders the results by user field.
-func ByUserField(field string, opts ...sql.OrderTermOption) OrderOption {
+// ByOwnerCount orders the results by owner count.
+func ByOwnerCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborTerms(s, newUserStep(), sql.OrderByField(field, opts...))
+		sqlgraph.OrderByNeighborsCount(s, newOwnerStep(), opts...)
 	}
 }
-func newUserStep() *sqlgraph.Step {
+
+// ByOwner orders the results by owner terms.
+func ByOwner(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newOwnerStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+func newOwnerStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
-		sqlgraph.To(UserInverseTable, FieldID),
-		sqlgraph.Edge(sqlgraph.M2O, true, UserTable, UserColumn),
+		sqlgraph.To(OwnerInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2M, true, OwnerTable, OwnerPrimaryKey...),
 	)
 }

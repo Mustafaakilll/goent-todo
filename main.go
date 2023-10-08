@@ -21,9 +21,10 @@ func main() {
 
 	client := database.Connect()
 
-	repo := repository.NewTodoRepository(client)
-	todoHandler := handler.NewTodoHandler(*repo)
-	userHandler := handler.NewUserHandler(*repo)
+	todoRepo := repository.NewTodoRepository(client)
+	userRepo := repository.NewUserRepository(client)
+	todoHandler := handler.NewTodoHandler(*todoRepo)
+	userHandler := handler.NewUserHandler(*userRepo)
 
 	defer client.Close()
 
@@ -31,10 +32,10 @@ func main() {
 
 	r.GET("/todos", middleware.Auth(), todoHandler.GetTodosHandler)
 	r.GET("/todos/:id", middleware.Auth(), todoHandler.GetTodoByIdHandler)
-	r.POST("/todos", middleware.Auth(), todoHandler.CreateTodoHandler)
-	r.PUT("/todos", middleware.Auth(), todoHandler.UpdateTodoByEntityHandler)
-	r.DELETE("/todos/:id", middleware.Auth(), todoHandler.DeleteTodoHandler)
-
+	r.POST("/todos", middleware.Auth(), todoHandler.CreateTodosHandler)
+	r.PUT("/todos/:id", middleware.Auth(), todoHandler.UpdateTodosHandler)
+	r.DELETE("/todos/:id", middleware.Auth(), todoHandler.DeleteTodosHandler)
+	//
 	r.POST("/register", userHandler.HandleRegisterUser)
 	r.POST("/login", userHandler.HandleLoginUser)
 	PORT := ":" + os.Getenv("PORT")

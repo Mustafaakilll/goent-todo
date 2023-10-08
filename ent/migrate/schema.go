@@ -13,24 +13,15 @@ var (
 		{Name: "id", Type: field.TypeUUID},
 		{Name: "title", Type: field.TypeString},
 		{Name: "description", Type: field.TypeString},
-		{Name: "created_at", Type: field.TypeInt64, Default: 1696778772480, SchemaType: map[string]string{"postgres": "bigint"}},
-		{Name: "due_date", Type: field.TypeInt64, SchemaType: map[string]string{"postgres": "bigint"}},
+		{Name: "created_at", Type: field.TypeInt64, Default: 1696793333072, SchemaType: map[string]string{"postgres": "bigint"}},
+		{Name: "due_date", Type: field.TypeInt64, Nullable: true, SchemaType: map[string]string{"postgres": "bigint"}},
 		{Name: "user_id", Type: field.TypeUUID},
-		{Name: "user_todos", Type: field.TypeUUID, Nullable: true},
 	}
 	// TodosTable holds the schema information for the "todos" table.
 	TodosTable = &schema.Table{
 		Name:       "todos",
 		Columns:    TodosColumns,
 		PrimaryKey: []*schema.Column{TodosColumns[0]},
-		ForeignKeys: []*schema.ForeignKey{
-			{
-				Symbol:     "todos_users_todos",
-				Columns:    []*schema.Column{TodosColumns[6]},
-				RefColumns: []*schema.Column{UsersColumns[0]},
-				OnDelete:   schema.SetNull,
-			},
-		},
 	}
 	// UsersColumns holds the columns for the "users" table.
 	UsersColumns = []*schema.Column{
@@ -45,13 +36,40 @@ var (
 		Columns:    UsersColumns,
 		PrimaryKey: []*schema.Column{UsersColumns[0]},
 	}
+	// UserTodosColumns holds the columns for the "user_todos" table.
+	UserTodosColumns = []*schema.Column{
+		{Name: "user_id", Type: field.TypeUUID},
+		{Name: "todo_id", Type: field.TypeUUID},
+	}
+	// UserTodosTable holds the schema information for the "user_todos" table.
+	UserTodosTable = &schema.Table{
+		Name:       "user_todos",
+		Columns:    UserTodosColumns,
+		PrimaryKey: []*schema.Column{UserTodosColumns[0], UserTodosColumns[1]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "user_todos_user_id",
+				Columns:    []*schema.Column{UserTodosColumns[0]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "user_todos_todo_id",
+				Columns:    []*schema.Column{UserTodosColumns[1]},
+				RefColumns: []*schema.Column{TodosColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		TodosTable,
 		UsersTable,
+		UserTodosTable,
 	}
 )
 
 func init() {
-	TodosTable.ForeignKeys[0].RefTable = UsersTable
+	UserTodosTable.ForeignKeys[0].RefTable = UsersTable
+	UserTodosTable.ForeignKeys[1].RefTable = TodosTable
 }

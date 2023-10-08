@@ -10,7 +10,6 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/google/uuid"
 	"github.com/mustafaakilll/ent_todo/ent/todo"
-	"github.com/mustafaakilll/ent_todo/ent/user"
 )
 
 // Todo is the model entity for the Todo schema.
@@ -31,30 +30,25 @@ type Todo struct {
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the TodoQuery when eager-loading is set.
 	Edges        TodoEdges `json:"edges"`
-	user_todos   *uuid.UUID
 	selectValues sql.SelectValues
 }
 
 // TodoEdges holds the relations/edges for other nodes in the graph.
 type TodoEdges struct {
-	// User holds the value of the user edge.
-	User *User `json:"user,omitempty"`
+	// Owner holds the value of the owner edge.
+	Owner []*User `json:"owner,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [1]bool
 }
 
-// UserOrErr returns the User value or an error if the edge
-// was not loaded in eager-loading, or loaded but was not found.
-func (e TodoEdges) UserOrErr() (*User, error) {
+// OwnerOrErr returns the Owner value or an error if the edge
+// was not loaded in eager-loading.
+func (e TodoEdges) OwnerOrErr() ([]*User, error) {
 	if e.loadedTypes[0] {
-		if e.User == nil {
-			// Edge was loaded but was not found.
-			return nil, &NotFoundError{label: user.Label}
-		}
-		return e.User, nil
+		return e.Owner, nil
 	}
-	return nil, &NotLoadedError{edge: "user"}
+	return nil, &NotLoadedError{edge: "owner"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -68,8 +62,6 @@ func (*Todo) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullString)
 		case todo.FieldID, todo.FieldUserID:
 			values[i] = new(uuid.UUID)
-		case todo.ForeignKeys[0]: // user_todos
-			values[i] = &sql.NullScanner{S: new(uuid.UUID)}
 		default:
 			values[i] = new(sql.UnknownType)
 		}
@@ -122,13 +114,6 @@ func (t *Todo) assignValues(columns []string, values []any) error {
 			} else if value != nil {
 				t.UserID = *value
 			}
-		case todo.ForeignKeys[0]:
-			if value, ok := values[i].(*sql.NullScanner); !ok {
-				return fmt.Errorf("unexpected type %T for field user_todos", values[i])
-			} else if value.Valid {
-				t.user_todos = new(uuid.UUID)
-				*t.user_todos = *value.S.(*uuid.UUID)
-			}
 		default:
 			t.selectValues.Set(columns[i], values[i])
 		}
@@ -142,9 +127,9 @@ func (t *Todo) Value(name string) (ent.Value, error) {
 	return t.selectValues.Get(name)
 }
 
-// QueryUser queries the "user" edge of the Todo entity.
-func (t *Todo) QueryUser() *UserQuery {
-	return NewTodoClient(t.config).QueryUser(t)
+// QueryOwner queries the "owner" edge of the Todo entity.
+func (t *Todo) QueryOwner() *UserQuery {
+	return NewTodoClient(t.config).QueryOwner(t)
 }
 
 // Update returns a builder for updating this Todo.

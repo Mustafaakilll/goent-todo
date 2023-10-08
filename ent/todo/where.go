@@ -289,6 +289,16 @@ func DueDateLTE(v int64) predicate.Todo {
 	return predicate.Todo(sql.FieldLTE(FieldDueDate, v))
 }
 
+// DueDateIsNil applies the IsNil predicate on the "due_date" field.
+func DueDateIsNil() predicate.Todo {
+	return predicate.Todo(sql.FieldIsNull(FieldDueDate))
+}
+
+// DueDateNotNil applies the NotNil predicate on the "due_date" field.
+func DueDateNotNil() predicate.Todo {
+	return predicate.Todo(sql.FieldNotNull(FieldDueDate))
+}
+
 // UserIDEQ applies the EQ predicate on the "user_id" field.
 func UserIDEQ(v uuid.UUID) predicate.Todo {
 	return predicate.Todo(sql.FieldEQ(FieldUserID, v))
@@ -329,21 +339,21 @@ func UserIDLTE(v uuid.UUID) predicate.Todo {
 	return predicate.Todo(sql.FieldLTE(FieldUserID, v))
 }
 
-// HasUser applies the HasEdge predicate on the "user" edge.
-func HasUser() predicate.Todo {
+// HasOwner applies the HasEdge predicate on the "owner" edge.
+func HasOwner() predicate.Todo {
 	return predicate.Todo(func(s *sql.Selector) {
 		step := sqlgraph.NewStep(
 			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, UserTable, UserColumn),
+			sqlgraph.Edge(sqlgraph.M2M, true, OwnerTable, OwnerPrimaryKey...),
 		)
 		sqlgraph.HasNeighbors(s, step)
 	})
 }
 
-// HasUserWith applies the HasEdge predicate on the "user" edge with a given conditions (other predicates).
-func HasUserWith(preds ...predicate.User) predicate.Todo {
+// HasOwnerWith applies the HasEdge predicate on the "owner" edge with a given conditions (other predicates).
+func HasOwnerWith(preds ...predicate.User) predicate.Todo {
 	return predicate.Todo(func(s *sql.Selector) {
-		step := newUserStep()
+		step := newOwnerStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

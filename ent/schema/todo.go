@@ -24,7 +24,7 @@ func (Todo) Fields() []ent.Field {
 		field.Int64("created_at").Default(time.Now().UnixMilli()).SchemaType(map[string]string{
 			dialect.Postgres: "bigint",
 		}).Immutable(),
-		field.Int64("due_date").Nillable().SchemaType(map[string]string{
+		field.Int64("due_date").Optional().Nillable().SchemaType(map[string]string{
 			dialect.Postgres: "bigint",
 		}),
 		field.UUID("user_id", uuid.UUID{}),
@@ -34,6 +34,8 @@ func (Todo) Fields() []ent.Field {
 // Edges of the Todo.
 func (Todo) Edges() []ent.Edge {
 	return []ent.Edge{
-		edge.From("user", User.Type).Ref("todos").Unique(),
+		edge.
+			From("owner", User.Type).
+			Ref("todos"),
 	}
 }

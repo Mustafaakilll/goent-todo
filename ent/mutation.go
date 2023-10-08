@@ -43,8 +43,9 @@ type TodoMutation struct {
 	adddue_date   *int64
 	user_id       *uuid.UUID
 	clearedFields map[string]struct{}
-	user          *uuid.UUID
-	cleareduser   bool
+	owner         map[uuid.UUID]struct{}
+	removedowner  map[uuid.UUID]struct{}
+	clearedowner  bool
 	done          bool
 	oldValue      func(context.Context) (*Todo, error)
 	predicates    []predicate.Todo
@@ -332,10 +333,24 @@ func (m *TodoMutation) AddedDueDate() (r int64, exists bool) {
 	return *v, true
 }
 
+// ClearDueDate clears the value of the "due_date" field.
+func (m *TodoMutation) ClearDueDate() {
+	m.due_date = nil
+	m.adddue_date = nil
+	m.clearedFields[todo.FieldDueDate] = struct{}{}
+}
+
+// DueDateCleared returns if the "due_date" field was cleared in this mutation.
+func (m *TodoMutation) DueDateCleared() bool {
+	_, ok := m.clearedFields[todo.FieldDueDate]
+	return ok
+}
+
 // ResetDueDate resets all changes to the "due_date" field.
 func (m *TodoMutation) ResetDueDate() {
 	m.due_date = nil
 	m.adddue_date = nil
+	delete(m.clearedFields, todo.FieldDueDate)
 }
 
 // SetUserID sets the "user_id" field.
@@ -374,43 +389,58 @@ func (m *TodoMutation) ResetUserID() {
 	m.user_id = nil
 }
 
-// SetUserID sets the "user" edge to the User entity by id.
-func (m *TodoMutation) SetUserID(id uuid.UUID) {
-	m.user = &id
+// AddOwnerIDs adds the "owner" edge to the User entity by ids.
+func (m *TodoMutation) AddOwnerIDs(ids ...uuid.UUID) {
+	if m.owner == nil {
+		m.owner = make(map[uuid.UUID]struct{})
+	}
+	for i := range ids {
+		m.owner[ids[i]] = struct{}{}
+	}
 }
 
-// ClearUser clears the "user" edge to the User entity.
-func (m *TodoMutation) ClearUser() {
-	m.cleareduser = true
+// ClearOwner clears the "owner" edge to the User entity.
+func (m *TodoMutation) ClearOwner() {
+	m.clearedowner = true
 }
 
-// UserCleared reports if the "user" edge to the User entity was cleared.
-func (m *TodoMutation) UserCleared() bool {
-	return m.cleareduser
+// OwnerCleared reports if the "owner" edge to the User entity was cleared.
+func (m *TodoMutation) OwnerCleared() bool {
+	return m.clearedowner
 }
 
-// UserID returns the "user" edge ID in the mutation.
-func (m *TodoMutation) UserID() (id uuid.UUID, exists bool) {
-	if m.user != nil {
-		return *m.user, true
+// RemoveOwnerIDs removes the "owner" edge to the User entity by IDs.
+func (m *TodoMutation) RemoveOwnerIDs(ids ...uuid.UUID) {
+	if m.removedowner == nil {
+		m.removedowner = make(map[uuid.UUID]struct{})
+	}
+	for i := range ids {
+		delete(m.owner, ids[i])
+		m.removedowner[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedOwner returns the removed IDs of the "owner" edge to the User entity.
+func (m *TodoMutation) RemovedOwnerIDs() (ids []uuid.UUID) {
+	for id := range m.removedowner {
+		ids = append(ids, id)
 	}
 	return
 }
 
-// UserIDs returns the "user" edge IDs in the mutation.
-// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
-// UserID instead. It exists only for internal usage by the builders.
-func (m *TodoMutation) UserIDs() (ids []uuid.UUID) {
-	if id := m.user; id != nil {
-		ids = append(ids, *id)
+// OwnerIDs returns the "owner" edge IDs in the mutation.
+func (m *TodoMutation) OwnerIDs() (ids []uuid.UUID) {
+	for id := range m.owner {
+		ids = append(ids, id)
 	}
 	return
 }
 
-// ResetUser resets all changes to the "user" edge.
-func (m *TodoMutation) ResetUser() {
-	m.user = nil
-	m.cleareduser = false
+// ResetOwner resets all changes to the "owner" edge.
+func (m *TodoMutation) ResetOwner() {
+	m.owner = nil
+	m.clearedowner = false
+	m.removedowner = nil
 }
 
 // Where appends a list predicates to the TodoMutation builder.
@@ -600,7 +630,11 @@ func (m *TodoMutation) AddField(name string, value ent.Value) error {
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *TodoMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(todo.FieldDueDate) {
+		fields = append(fields, todo.FieldDueDate)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -613,6 +647,11 @@ func (m *TodoMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *TodoMutation) ClearField(name string) error {
+	switch name {
+	case todo.FieldDueDate:
+		m.ClearDueDate()
+		return nil
+	}
 	return fmt.Errorf("unknown Todo nullable field %s", name)
 }
 
@@ -642,8 +681,8 @@ func (m *TodoMutation) ResetField(name string) error {
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *TodoMutation) AddedEdges() []string {
 	edges := make([]string, 0, 1)
-	if m.user != nil {
-		edges = append(edges, todo.EdgeUser)
+	if m.owner != nil {
+		edges = append(edges, todo.EdgeOwner)
 	}
 	return edges
 }
@@ -652,10 +691,12 @@ func (m *TodoMutation) AddedEdges() []string {
 // name in this mutation.
 func (m *TodoMutation) AddedIDs(name string) []ent.Value {
 	switch name {
-	case todo.EdgeUser:
-		if id := m.user; id != nil {
-			return []ent.Value{*id}
+	case todo.EdgeOwner:
+		ids := make([]ent.Value, 0, len(m.owner))
+		for id := range m.owner {
+			ids = append(ids, id)
 		}
+		return ids
 	}
 	return nil
 }
@@ -663,20 +704,31 @@ func (m *TodoMutation) AddedIDs(name string) []ent.Value {
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *TodoMutation) RemovedEdges() []string {
 	edges := make([]string, 0, 1)
+	if m.removedowner != nil {
+		edges = append(edges, todo.EdgeOwner)
+	}
 	return edges
 }
 
 // RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
 // the given name in this mutation.
 func (m *TodoMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case todo.EdgeOwner:
+		ids := make([]ent.Value, 0, len(m.removedowner))
+		for id := range m.removedowner {
+			ids = append(ids, id)
+		}
+		return ids
+	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *TodoMutation) ClearedEdges() []string {
 	edges := make([]string, 0, 1)
-	if m.cleareduser {
-		edges = append(edges, todo.EdgeUser)
+	if m.clearedowner {
+		edges = append(edges, todo.EdgeOwner)
 	}
 	return edges
 }
@@ -685,8 +737,8 @@ func (m *TodoMutation) ClearedEdges() []string {
 // was cleared in this mutation.
 func (m *TodoMutation) EdgeCleared(name string) bool {
 	switch name {
-	case todo.EdgeUser:
-		return m.cleareduser
+	case todo.EdgeOwner:
+		return m.clearedowner
 	}
 	return false
 }
@@ -695,9 +747,6 @@ func (m *TodoMutation) EdgeCleared(name string) bool {
 // if that edge is not defined in the schema.
 func (m *TodoMutation) ClearEdge(name string) error {
 	switch name {
-	case todo.EdgeUser:
-		m.ClearUser()
-		return nil
 	}
 	return fmt.Errorf("unknown Todo unique edge %s", name)
 }
@@ -706,8 +755,8 @@ func (m *TodoMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *TodoMutation) ResetEdge(name string) error {
 	switch name {
-	case todo.EdgeUser:
-		m.ResetUser()
+	case todo.EdgeOwner:
+		m.ResetOwner()
 		return nil
 	}
 	return fmt.Errorf("unknown Todo edge %s", name)

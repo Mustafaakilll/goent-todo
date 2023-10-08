@@ -53,6 +53,14 @@ func (tc *TodoCreate) SetDueDate(i int64) *TodoCreate {
 	return tc
 }
 
+// SetNillableDueDate sets the "due_date" field if the given value is not nil.
+func (tc *TodoCreate) SetNillableDueDate(i *int64) *TodoCreate {
+	if i != nil {
+		tc.SetDueDate(*i)
+	}
+	return tc
+}
+
 // SetUserID sets the "user_id" field.
 func (tc *TodoCreate) SetUserID(u uuid.UUID) *TodoCreate {
 	tc.mutation.SetUserID(u)
@@ -73,23 +81,19 @@ func (tc *TodoCreate) SetNillableID(u *uuid.UUID) *TodoCreate {
 	return tc
 }
 
-// SetUserID sets the "user" edge to the User entity by ID.
-func (tc *TodoCreate) SetUserID(id uuid.UUID) *TodoCreate {
-	tc.mutation.SetUserID(id)
+// AddOwnerIDs adds the "owner" edge to the User entity by IDs.
+func (tc *TodoCreate) AddOwnerIDs(ids ...uuid.UUID) *TodoCreate {
+	tc.mutation.AddOwnerIDs(ids...)
 	return tc
 }
 
-// SetNillableUserID sets the "user" edge to the User entity by ID if the given value is not nil.
-func (tc *TodoCreate) SetNillableUserID(id *uuid.UUID) *TodoCreate {
-	if id != nil {
-		tc = tc.SetUserID(*id)
+// AddOwner adds the "owner" edges to the User entity.
+func (tc *TodoCreate) AddOwner(u ...*User) *TodoCreate {
+	ids := make([]uuid.UUID, len(u))
+	for i := range u {
+		ids[i] = u[i].ID
 	}
-	return tc
-}
-
-// SetUser sets the "user" edge to the User entity.
-func (tc *TodoCreate) SetUser(u *User) *TodoCreate {
-	return tc.SetUserID(u.ID)
+	return tc.AddOwnerIDs(ids...)
 }
 
 // Mutation returns the TodoMutation object of the builder.
@@ -158,9 +162,6 @@ func (tc *TodoCreate) check() error {
 	if _, ok := tc.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "Todo.created_at"`)}
 	}
-	if _, ok := tc.mutation.DueDate(); !ok {
-		return &ValidationError{Name: "due_date", err: errors.New(`ent: missing required field "Todo.due_date"`)}
-	}
 	if _, ok := tc.mutation.UserID(); !ok {
 		return &ValidationError{Name: "user_id", err: errors.New(`ent: missing required field "Todo.user_id"`)}
 	}
@@ -219,12 +220,12 @@ func (tc *TodoCreate) createSpec() (*Todo, *sqlgraph.CreateSpec) {
 		_spec.SetField(todo.FieldUserID, field.TypeUUID, value)
 		_node.UserID = value
 	}
-	if nodes := tc.mutation.UserIDs(); len(nodes) > 0 {
+	if nodes := tc.mutation.OwnerIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
+			Rel:     sqlgraph.M2M,
 			Inverse: true,
-			Table:   todo.UserTable,
-			Columns: []string{todo.UserColumn},
+			Table:   todo.OwnerTable,
+			Columns: todo.OwnerPrimaryKey,
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeUUID),
@@ -233,7 +234,6 @@ func (tc *TodoCreate) createSpec() (*Todo, *sqlgraph.CreateSpec) {
 		for _, k := range nodes {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
-		_node.user_todos = &nodes[0]
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec

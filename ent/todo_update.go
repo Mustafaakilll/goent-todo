@@ -48,9 +48,23 @@ func (tu *TodoUpdate) SetDueDate(i int64) *TodoUpdate {
 	return tu
 }
 
+// SetNillableDueDate sets the "due_date" field if the given value is not nil.
+func (tu *TodoUpdate) SetNillableDueDate(i *int64) *TodoUpdate {
+	if i != nil {
+		tu.SetDueDate(*i)
+	}
+	return tu
+}
+
 // AddDueDate adds i to the "due_date" field.
 func (tu *TodoUpdate) AddDueDate(i int64) *TodoUpdate {
 	tu.mutation.AddDueDate(i)
+	return tu
+}
+
+// ClearDueDate clears the value of the "due_date" field.
+func (tu *TodoUpdate) ClearDueDate() *TodoUpdate {
+	tu.mutation.ClearDueDate()
 	return tu
 }
 
@@ -60,23 +74,19 @@ func (tu *TodoUpdate) SetUserID(u uuid.UUID) *TodoUpdate {
 	return tu
 }
 
-// SetUserID sets the "user" edge to the User entity by ID.
-func (tu *TodoUpdate) SetUserID(id uuid.UUID) *TodoUpdate {
-	tu.mutation.SetUserID(id)
+// AddOwnerIDs adds the "owner" edge to the User entity by IDs.
+func (tu *TodoUpdate) AddOwnerIDs(ids ...uuid.UUID) *TodoUpdate {
+	tu.mutation.AddOwnerIDs(ids...)
 	return tu
 }
 
-// SetNillableUserID sets the "user" edge to the User entity by ID if the given value is not nil.
-func (tu *TodoUpdate) SetNillableUserID(id *uuid.UUID) *TodoUpdate {
-	if id != nil {
-		tu = tu.SetUserID(*id)
+// AddOwner adds the "owner" edges to the User entity.
+func (tu *TodoUpdate) AddOwner(u ...*User) *TodoUpdate {
+	ids := make([]uuid.UUID, len(u))
+	for i := range u {
+		ids[i] = u[i].ID
 	}
-	return tu
-}
-
-// SetUser sets the "user" edge to the User entity.
-func (tu *TodoUpdate) SetUser(u *User) *TodoUpdate {
-	return tu.SetUserID(u.ID)
+	return tu.AddOwnerIDs(ids...)
 }
 
 // Mutation returns the TodoMutation object of the builder.
@@ -84,10 +94,25 @@ func (tu *TodoUpdate) Mutation() *TodoMutation {
 	return tu.mutation
 }
 
-// ClearUser clears the "user" edge to the User entity.
-func (tu *TodoUpdate) ClearUser() *TodoUpdate {
-	tu.mutation.ClearUser()
+// ClearOwner clears all "owner" edges to the User entity.
+func (tu *TodoUpdate) ClearOwner() *TodoUpdate {
+	tu.mutation.ClearOwner()
 	return tu
+}
+
+// RemoveOwnerIDs removes the "owner" edge to User entities by IDs.
+func (tu *TodoUpdate) RemoveOwnerIDs(ids ...uuid.UUID) *TodoUpdate {
+	tu.mutation.RemoveOwnerIDs(ids...)
+	return tu
+}
+
+// RemoveOwner removes "owner" edges to User entities.
+func (tu *TodoUpdate) RemoveOwner(u ...*User) *TodoUpdate {
+	ids := make([]uuid.UUID, len(u))
+	for i := range u {
+		ids[i] = u[i].ID
+	}
+	return tu.RemoveOwnerIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -156,15 +181,18 @@ func (tu *TodoUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	if value, ok := tu.mutation.AddedDueDate(); ok {
 		_spec.AddField(todo.FieldDueDate, field.TypeInt64, value)
 	}
+	if tu.mutation.DueDateCleared() {
+		_spec.ClearField(todo.FieldDueDate, field.TypeInt64)
+	}
 	if value, ok := tu.mutation.UserID(); ok {
 		_spec.SetField(todo.FieldUserID, field.TypeUUID, value)
 	}
-	if tu.mutation.UserCleared() {
+	if tu.mutation.OwnerCleared() {
 		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
+			Rel:     sqlgraph.M2M,
 			Inverse: true,
-			Table:   todo.UserTable,
-			Columns: []string{todo.UserColumn},
+			Table:   todo.OwnerTable,
+			Columns: todo.OwnerPrimaryKey,
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeUUID),
@@ -172,12 +200,28 @@ func (tu *TodoUpdate) sqlSave(ctx context.Context) (n int, err error) {
 		}
 		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
 	}
-	if nodes := tu.mutation.UserIDs(); len(nodes) > 0 {
+	if nodes := tu.mutation.RemovedOwnerIDs(); len(nodes) > 0 && !tu.mutation.OwnerCleared() {
 		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
+			Rel:     sqlgraph.M2M,
 			Inverse: true,
-			Table:   todo.UserTable,
-			Columns: []string{todo.UserColumn},
+			Table:   todo.OwnerTable,
+			Columns: todo.OwnerPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := tu.mutation.OwnerIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   todo.OwnerTable,
+			Columns: todo.OwnerPrimaryKey,
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeUUID),
@@ -227,9 +271,23 @@ func (tuo *TodoUpdateOne) SetDueDate(i int64) *TodoUpdateOne {
 	return tuo
 }
 
+// SetNillableDueDate sets the "due_date" field if the given value is not nil.
+func (tuo *TodoUpdateOne) SetNillableDueDate(i *int64) *TodoUpdateOne {
+	if i != nil {
+		tuo.SetDueDate(*i)
+	}
+	return tuo
+}
+
 // AddDueDate adds i to the "due_date" field.
 func (tuo *TodoUpdateOne) AddDueDate(i int64) *TodoUpdateOne {
 	tuo.mutation.AddDueDate(i)
+	return tuo
+}
+
+// ClearDueDate clears the value of the "due_date" field.
+func (tuo *TodoUpdateOne) ClearDueDate() *TodoUpdateOne {
+	tuo.mutation.ClearDueDate()
 	return tuo
 }
 
@@ -239,23 +297,19 @@ func (tuo *TodoUpdateOne) SetUserID(u uuid.UUID) *TodoUpdateOne {
 	return tuo
 }
 
-// SetUserID sets the "user" edge to the User entity by ID.
-func (tuo *TodoUpdateOne) SetUserID(id uuid.UUID) *TodoUpdateOne {
-	tuo.mutation.SetUserID(id)
+// AddOwnerIDs adds the "owner" edge to the User entity by IDs.
+func (tuo *TodoUpdateOne) AddOwnerIDs(ids ...uuid.UUID) *TodoUpdateOne {
+	tuo.mutation.AddOwnerIDs(ids...)
 	return tuo
 }
 
-// SetNillableUserID sets the "user" edge to the User entity by ID if the given value is not nil.
-func (tuo *TodoUpdateOne) SetNillableUserID(id *uuid.UUID) *TodoUpdateOne {
-	if id != nil {
-		tuo = tuo.SetUserID(*id)
+// AddOwner adds the "owner" edges to the User entity.
+func (tuo *TodoUpdateOne) AddOwner(u ...*User) *TodoUpdateOne {
+	ids := make([]uuid.UUID, len(u))
+	for i := range u {
+		ids[i] = u[i].ID
 	}
-	return tuo
-}
-
-// SetUser sets the "user" edge to the User entity.
-func (tuo *TodoUpdateOne) SetUser(u *User) *TodoUpdateOne {
-	return tuo.SetUserID(u.ID)
+	return tuo.AddOwnerIDs(ids...)
 }
 
 // Mutation returns the TodoMutation object of the builder.
@@ -263,10 +317,25 @@ func (tuo *TodoUpdateOne) Mutation() *TodoMutation {
 	return tuo.mutation
 }
 
-// ClearUser clears the "user" edge to the User entity.
-func (tuo *TodoUpdateOne) ClearUser() *TodoUpdateOne {
-	tuo.mutation.ClearUser()
+// ClearOwner clears all "owner" edges to the User entity.
+func (tuo *TodoUpdateOne) ClearOwner() *TodoUpdateOne {
+	tuo.mutation.ClearOwner()
 	return tuo
+}
+
+// RemoveOwnerIDs removes the "owner" edge to User entities by IDs.
+func (tuo *TodoUpdateOne) RemoveOwnerIDs(ids ...uuid.UUID) *TodoUpdateOne {
+	tuo.mutation.RemoveOwnerIDs(ids...)
+	return tuo
+}
+
+// RemoveOwner removes "owner" edges to User entities.
+func (tuo *TodoUpdateOne) RemoveOwner(u ...*User) *TodoUpdateOne {
+	ids := make([]uuid.UUID, len(u))
+	for i := range u {
+		ids[i] = u[i].ID
+	}
+	return tuo.RemoveOwnerIDs(ids...)
 }
 
 // Where appends a list predicates to the TodoUpdate builder.
@@ -365,15 +434,18 @@ func (tuo *TodoUpdateOne) sqlSave(ctx context.Context) (_node *Todo, err error) 
 	if value, ok := tuo.mutation.AddedDueDate(); ok {
 		_spec.AddField(todo.FieldDueDate, field.TypeInt64, value)
 	}
+	if tuo.mutation.DueDateCleared() {
+		_spec.ClearField(todo.FieldDueDate, field.TypeInt64)
+	}
 	if value, ok := tuo.mutation.UserID(); ok {
 		_spec.SetField(todo.FieldUserID, field.TypeUUID, value)
 	}
-	if tuo.mutation.UserCleared() {
+	if tuo.mutation.OwnerCleared() {
 		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
+			Rel:     sqlgraph.M2M,
 			Inverse: true,
-			Table:   todo.UserTable,
-			Columns: []string{todo.UserColumn},
+			Table:   todo.OwnerTable,
+			Columns: todo.OwnerPrimaryKey,
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeUUID),
@@ -381,12 +453,28 @@ func (tuo *TodoUpdateOne) sqlSave(ctx context.Context) (_node *Todo, err error) 
 		}
 		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
 	}
-	if nodes := tuo.mutation.UserIDs(); len(nodes) > 0 {
+	if nodes := tuo.mutation.RemovedOwnerIDs(); len(nodes) > 0 && !tuo.mutation.OwnerCleared() {
 		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.M2O,
+			Rel:     sqlgraph.M2M,
 			Inverse: true,
-			Table:   todo.UserTable,
-			Columns: []string{todo.UserColumn},
+			Table:   todo.OwnerTable,
+			Columns: todo.OwnerPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := tuo.mutation.OwnerIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   todo.OwnerTable,
+			Columns: todo.OwnerPrimaryKey,
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeUUID),

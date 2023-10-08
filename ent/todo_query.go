@@ -4,6 +4,7 @@ package ent
 
 import (
 	"context"
+	"database/sql/driver"
 	"fmt"
 	"math"
 
@@ -23,8 +24,7 @@ type TodoQuery struct {
 	order      []todo.OrderOption
 	inters     []Interceptor
 	predicates []predicate.Todo
-	withUser   *UserQuery
-	withFKs    bool
+	withOwner  *UserQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -61,8 +61,8 @@ func (tq *TodoQuery) Order(o ...todo.OrderOption) *TodoQuery {
 	return tq
 }
 
-// QueryUser chains the current query on the "user" edge.
-func (tq *TodoQuery) QueryUser() *UserQuery {
+// QueryOwner chains the current query on the "owner" edge.
+func (tq *TodoQuery) QueryOwner() *UserQuery {
 	query := (&UserClient{config: tq.config}).Query()
 	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
 		if err := tq.prepareQuery(ctx); err != nil {
@@ -75,7 +75,7 @@ func (tq *TodoQuery) QueryUser() *UserQuery {
 		step := sqlgraph.NewStep(
 			sqlgraph.From(todo.Table, todo.FieldID, selector),
 			sqlgraph.To(user.Table, user.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, todo.UserTable, todo.UserColumn),
+			sqlgraph.Edge(sqlgraph.M2M, true, todo.OwnerTable, todo.OwnerPrimaryKey...),
 		)
 		fromU = sqlgraph.SetNeighbors(tq.driver.Dialect(), step)
 		return fromU, nil
@@ -275,21 +275,21 @@ func (tq *TodoQuery) Clone() *TodoQuery {
 		order:      append([]todo.OrderOption{}, tq.order...),
 		inters:     append([]Interceptor{}, tq.inters...),
 		predicates: append([]predicate.Todo{}, tq.predicates...),
-		withUser:   tq.withUser.Clone(),
+		withOwner:  tq.withOwner.Clone(),
 		// clone intermediate query.
 		sql:  tq.sql.Clone(),
 		path: tq.path,
 	}
 }
 
-// WithUser tells the query-builder to eager-load the nodes that are connected to
-// the "user" edge. The optional arguments are used to configure the query builder of the edge.
-func (tq *TodoQuery) WithUser(opts ...func(*UserQuery)) *TodoQuery {
+// WithOwner tells the query-builder to eager-load the nodes that are connected to
+// the "owner" edge. The optional arguments are used to configure the query builder of the edge.
+func (tq *TodoQuery) WithOwner(opts ...func(*UserQuery)) *TodoQuery {
 	query := (&UserClient{config: tq.config}).Query()
 	for _, opt := range opts {
 		opt(query)
 	}
-	tq.withUser = query
+	tq.withOwner = query
 	return tq
 }
 
@@ -370,18 +370,11 @@ func (tq *TodoQuery) prepareQuery(ctx context.Context) error {
 func (tq *TodoQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Todo, error) {
 	var (
 		nodes       = []*Todo{}
-		withFKs     = tq.withFKs
 		_spec       = tq.querySpec()
 		loadedTypes = [1]bool{
-			tq.withUser != nil,
+			tq.withOwner != nil,
 		}
 	)
-	if tq.withUser != nil {
-		withFKs = true
-	}
-	if withFKs {
-		_spec.Node.Columns = append(_spec.Node.Columns, todo.ForeignKeys...)
-	}
 	_spec.ScanValues = func(columns []string) ([]any, error) {
 		return (*Todo).scanValues(nil, columns)
 	}
@@ -400,43 +393,73 @@ func (tq *TodoQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Todo, e
 	if len(nodes) == 0 {
 		return nodes, nil
 	}
-	if query := tq.withUser; query != nil {
-		if err := tq.loadUser(ctx, query, nodes, nil,
-			func(n *Todo, e *User) { n.Edges.User = e }); err != nil {
+	if query := tq.withOwner; query != nil {
+		if err := tq.loadOwner(ctx, query, nodes,
+			func(n *Todo) { n.Edges.Owner = []*User{} },
+			func(n *Todo, e *User) { n.Edges.Owner = append(n.Edges.Owner, e) }); err != nil {
 			return nil, err
 		}
 	}
 	return nodes, nil
 }
 
-func (tq *TodoQuery) loadUser(ctx context.Context, query *UserQuery, nodes []*Todo, init func(*Todo), assign func(*Todo, *User)) error {
-	ids := make([]uuid.UUID, 0, len(nodes))
-	nodeids := make(map[uuid.UUID][]*Todo)
-	for i := range nodes {
-		if nodes[i].user_todos == nil {
-			continue
+func (tq *TodoQuery) loadOwner(ctx context.Context, query *UserQuery, nodes []*Todo, init func(*Todo), assign func(*Todo, *User)) error {
+	edgeIDs := make([]driver.Value, len(nodes))
+	byID := make(map[uuid.UUID]*Todo)
+	nids := make(map[uuid.UUID]map[*Todo]struct{})
+	for i, node := range nodes {
+		edgeIDs[i] = node.ID
+		byID[node.ID] = node
+		if init != nil {
+			init(node)
 		}
-		fk := *nodes[i].user_todos
-		if _, ok := nodeids[fk]; !ok {
-			ids = append(ids, fk)
-		}
-		nodeids[fk] = append(nodeids[fk], nodes[i])
 	}
-	if len(ids) == 0 {
-		return nil
+	query.Where(func(s *sql.Selector) {
+		joinT := sql.Table(todo.OwnerTable)
+		s.Join(joinT).On(s.C(user.FieldID), joinT.C(todo.OwnerPrimaryKey[0]))
+		s.Where(sql.InValues(joinT.C(todo.OwnerPrimaryKey[1]), edgeIDs...))
+		columns := s.SelectedColumns()
+		s.Select(joinT.C(todo.OwnerPrimaryKey[1]))
+		s.AppendSelect(columns...)
+		s.SetDistinct(false)
+	})
+	if err := query.prepareQuery(ctx); err != nil {
+		return err
 	}
-	query.Where(user.IDIn(ids...))
-	neighbors, err := query.All(ctx)
+	qr := QuerierFunc(func(ctx context.Context, q Query) (Value, error) {
+		return query.sqlAll(ctx, func(_ context.Context, spec *sqlgraph.QuerySpec) {
+			assign := spec.Assign
+			values := spec.ScanValues
+			spec.ScanValues = func(columns []string) ([]any, error) {
+				values, err := values(columns[1:])
+				if err != nil {
+					return nil, err
+				}
+				return append([]any{new(uuid.UUID)}, values...), nil
+			}
+			spec.Assign = func(columns []string, values []any) error {
+				outValue := *values[0].(*uuid.UUID)
+				inValue := *values[1].(*uuid.UUID)
+				if nids[inValue] == nil {
+					nids[inValue] = map[*Todo]struct{}{byID[outValue]: {}}
+					return assign(columns[1:], values[1:])
+				}
+				nids[inValue][byID[outValue]] = struct{}{}
+				return nil
+			}
+		})
+	})
+	neighbors, err := withInterceptors[[]*User](ctx, query, qr, query.inters)
 	if err != nil {
 		return err
 	}
 	for _, n := range neighbors {
-		nodes, ok := nodeids[n.ID]
+		nodes, ok := nids[n.ID]
 		if !ok {
-			return fmt.Errorf(`unexpected foreign-key "user_todos" returned %v`, n.ID)
+			return fmt.Errorf(`unexpected "owner" node returned %v`, n.ID)
 		}
-		for i := range nodes {
-			assign(nodes[i], n)
+		for kn := range nodes {
+			assign(kn, n)
 		}
 	}
 	return nil

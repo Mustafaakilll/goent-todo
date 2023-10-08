@@ -269,7 +269,7 @@ func HasTodos() predicate.User {
 	return predicate.User(func(s *sql.Selector) {
 		step := sqlgraph.NewStep(
 			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, TodosTable, TodosColumn),
+			sqlgraph.Edge(sqlgraph.M2M, false, TodosTable, TodosPrimaryKey...),
 		)
 		sqlgraph.HasNeighbors(s, step)
 	})
