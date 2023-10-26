@@ -37,7 +37,7 @@ func (r UserRepository) RegisterUser(user *ent.User) (*ent.User, error) {
 		return nil, err
 	}
 
-	_, err = auth.GenerateJWT(user.Email, user.Fullname, user.ID)
+	_, err = auth.GenerateJWT(user.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (r UserRepository) LoginUser(user *ent.User) (*ent.User, error) {
 		return nil, err
 	}
 
-	_, err = auth.GenerateJWT(user.Email, user.Fullname, user.ID)
+	_, err = auth.GenerateJWT(user.ID)
 	if err != nil {
 		return nil, err
 	}

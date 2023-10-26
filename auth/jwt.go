@@ -12,17 +12,13 @@ import (
 var jwtSecret = []byte("MyVeryVerySecretKey")
 
 type JWTClaims struct {
-	Email    string    `json:"email"`
-	Fullname string    `json:"fullname"`
-	UserId   uuid.UUID `json:"user_id"`
+	UserId uuid.UUID `json:"user_id"`
 	jwt.StandardClaims
 }
 
-func GenerateJWT(email, fullname string, userId uuid.UUID) (string, error) {
+func GenerateJWT(userId uuid.UUID) (string, error) {
 	claims := &JWTClaims{
-		Email:    email,
-		Fullname: fullname,
-		UserId:   userId,
+		UserId: userId,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: time.Now().Local().Add(time.Hour * 24).Unix(),
 		},
