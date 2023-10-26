@@ -10,10 +10,13 @@ import (
 	"github.com/mustafaakilll/ent_todo/repository"
 )
 
+// TodoHandler struct for accessing TodoRepository
 type TodoHandler struct {
+	// TodoRepository for database actions
 	TodoRepository repository.TodoRepository
 }
 
+// NewTodoHandler function for creating new TodoHandler with TodoRepository for DI
 func NewTodoHandler(repository repository.TodoRepository) *TodoHandler {
 	return &TodoHandler{
 		TodoRepository: repository,
@@ -67,8 +70,11 @@ func (uh TodoHandler) GetTodoByIdHandler(ctx *gin.Context) {
 	})
 }
 
+// CreateTodo struct for creating new todo
 type CreateTodo struct {
-	Title       string `json:"title"`
+	// Title of todo
+	Title string `json:"title"`
+	// Description of todo
 	Description string `json:"description"`
 }
 
@@ -104,7 +110,7 @@ func (uh TodoHandler) CreateTodosHandler(ctx *gin.Context) {
 	})
 }
 
-// CreateTodosHandler godoc
+// DeleteTodosHandler godoc
 // @Summary      Create Todo
 // @Description  Create Todo
 // @Accept       json

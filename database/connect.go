@@ -8,6 +8,7 @@ import (
 	"github.com/mustafaakilll/ent_todo/ent"
 )
 
+// Connect function for connecting to database.
 func Connect() *ent.Client {
 
 	client, err := ent.Open("postgres", os.Getenv("DATABASE_URL"))

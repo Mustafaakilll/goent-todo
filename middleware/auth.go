@@ -7,6 +7,11 @@ import (
 	"github.com/mustafaakilll/ent_todo/auth"
 )
 
+// Auth function for checking user is authenticated or not.
+//
+// If not, return 401 status code and "Unauthorized" message.
+//
+// If user is authenticated, set user_id to context and continue.
 func Auth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenString := c.GetHeader("Authorization")

@@ -2,7 +2,6 @@ package auth
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt"
@@ -11,16 +10,20 @@ import (
 
 var jwtSecret = []byte("MyVeryVerySecretKey")
 
+// JWTClaims struct for JWT claims
 type JWTClaims struct {
+	// UserId is the id of user. Need to parse to save it to context
 	UserId uuid.UUID `json:"user_id"`
+	// Standart JWTClaims
 	jwt.StandardClaims
 }
 
+// GenerateJWT function for generating JWT token.
 func GenerateJWT(userId uuid.UUID) (string, error) {
 	claims := &JWTClaims{
 		UserId: userId,
 		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: time.Now().Local().Add(time.Hour * 24).Unix(),
+			ExpiresAt: time.Now().Local().Add(time.Hour * 24).Unix(), // 24 Hours
 		},
 	}
 
@@ -28,6 +31,10 @@ func GenerateJWT(userId uuid.UUID) (string, error) {
 	return token.SignedString(jwtSecret)
 }
 
+// ValidateJWT function for validating JWT token.
+//
+// It returns error if token is not valid or expired.
+// If there is no error, it returns JWTClaims.
 func ValidateJWT(jwtToken string) (*JWTClaims, error) {
 	token, err := jwt.ParseWithClaims(
 		jwtToken,
@@ -40,7 +47,6 @@ func ValidateJWT(jwtToken string) (*JWTClaims, error) {
 	}
 
 	claims, ok := token.Claims.(*JWTClaims)
-	fmt.Println(claims.Id)
 
 	if !ok {
 		return nil, errors.New("invalid JWT claims")
