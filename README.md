@@ -14,4 +14,4 @@ Alternatively you can use `docker` to run postgresql without install it.
 - Finally you can go to `localhost:3000/api/v1/swagger/index.html` for swagger ui.
 
 # Doc
-You can view godoc with `godoc -http:3001` command and in browser you can search this website `http://localhost:3001/pkg/github.com/mustafaakilll/ent_todo/`.
+You can view godoc with `godoc -http=:3001` command and in browser you can search this website `http://localhost:3001/pkg/github.com/mustafaakilll/ent_todo/`.
