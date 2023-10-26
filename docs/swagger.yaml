@@ -1,0 +1,214 @@
+basePath: /api/v1
+consumes:
+- application/json
+definitions:
+  ent.Todo:
+    properties:
+      created_at:
+        description: CreatedAt holds the value of the "created_at" field.
+        type: integer
+      description:
+        description: Description holds the value of the "description" field.
+        type: string
+      due_date:
+        description: DueDate holds the value of the "due_date" field.
+        type: integer
+      edges:
+        allOf:
+        - $ref: '#/definitions/ent.TodoEdges'
+        description: |-
+          Edges holds the relations/edges for other nodes in the graph.
+          The values are being populated by the TodoQuery when eager-loading is set.
+      id:
+        description: ID of the ent.
+        type: string
+      title:
+        description: Title holds the value of the "title" field.
+        type: string
+      user_id:
+        description: UserID holds the value of the "user_id" field.
+        type: string
+    type: object
+  ent.TodoEdges:
+    properties:
+      owner:
+        description: Owner holds the value of the owner edge.
+        items:
+          $ref: '#/definitions/ent.User'
+        type: array
+    type: object
+  ent.User:
+    properties:
+      edges:
+        allOf:
+        - $ref: '#/definitions/ent.UserEdges'
+        description: |-
+          Edges holds the relations/edges for other nodes in the graph.
+          The values are being populated by the UserQuery when eager-loading is set.
+      email:
+        description: Email holds the value of the "email" field.
+        type: string
+      fullname:
+        description: Fullname holds the value of the "fullname" field.
+        type: string
+      id:
+        description: ID of the ent.
+        type: string
+      password:
+        description: Password holds the value of the "password" field.
+        type: string
+    type: object
+  ent.UserEdges:
+    properties:
+      todos:
+        description: Todos holds the value of the todos edge.
+        items:
+          $ref: '#/definitions/ent.Todo'
+        type: array
+    type: object
+  handler.CreateTodo:
+    properties:
+      description:
+        type: string
+      title:
+        type: string
+    type: object
+  model.Response:
+    properties:
+      code:
+        type: integer
+      message:
+        type: string
+    type: object
+host: localhost:3000
+info:
+  contact:
+    email: mustafa@veriyaz.com.tr
+    name: Mustafa Akil
+  description: Basic implementation of swagger for Ent Todo API
+  license:
+    name: Apache 2.0
+  termsOfService: http://swagger.io/terms/
+  title: Ent Todo API
+  version: "2.0"
+paths:
+  /todos:
+    get:
+      description: Get all todos by user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ent.Todo'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: Get all todos
+    post:
+      consumes:
+      - application/json
+      description: Create Todo
+      parameters:
+      - description: Todo
+        in: body
+        name: todo
+        required: true
+        schema:
+          $ref: '#/definitions/handler.CreateTodo'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ent.Todo'
+      security:
+      - ApiKeyAuth: []
+      summary: Create Todo
+  /todos/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Create Todo
+      parameters:
+      - description: TodoID
+        in: path
+        name: todoId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: Create Todo
+    get:
+      description: Get todo by id of user
+      parameters:
+      - description: TodoId
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ent.Todo'
+      security:
+      - ApiKeyAuth: []
+      summary: Get todo by id
+    put:
+      consumes:
+      - application/json
+      description: Upate Todo
+      parameters:
+      - description: TodoID
+        in: path
+        name: todoId
+        required: true
+        type: string
+      - description: Todo
+        in: body
+        name: todo
+        required: true
+        schema:
+          $ref: '#/definitions/handler.CreateTodo'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ent.Todo'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: Update Todo
+produces:
+- application/json
+securityDefinitions:
+  ApiKeyAuth:
+    description: Description for what is this security definition being used
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
